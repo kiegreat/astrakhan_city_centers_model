@@ -35,6 +35,7 @@ plots_theme <-   theme(
 
 df_coords <- readRDS('data/df_coords.rds')
 
+# 1. Kernel density ----
 
 map1 <- ggmap(basemap) +
   stat_density_2d(data = df_coords, aes(x = lon, y = lat, fill = ..level.., alpha = ..level..), geom = 'polygon', h = NULL, adjust = c(0.2, 0.2)) +
@@ -45,108 +46,170 @@ map1 <- ggmap(basemap) +
 
 map1
 
-places <- read_sf("data/osm/gis_osm_places_a_free_1.shp")
-city <- places %>% filter(name == 'Астрахань') # %>% st_set_crs(4326) %>% st_transform(crs = 32638)
+rm(map1); gc()
 
+
+
+# 2. Hexagonal grid ----
+
+# Remove water part from city shape
+city <- read_sf("data/osm/gis_osm_places_a_free_1.shp") %>% filter(name == 'Астрахань') # %>% st_set_crs(4326) %>% st_transform(crs = 32638)
 water <- read_sf("data/osm/gis_osm_water_a_free_1.shp") %>% st_intersection(city, water)
 city <- st_difference(city %>% st_union(), water %>% st_union()) %>% st_as_sf()
+rm(water)
 
-cells <- st_make_grid(city, cellsize = .002, square = FALSE) # first, cellsize was 0.004
-class(cells)
+# Create hexagonal grid
+set.seed(42)
+cells <- st_make_grid(city, cellsize = .002, square = FALSE) %>% st_as_sf()
+cells <- cells %>% mutate(id = c(1:nrow(cells)))
 
-ggmap(basemap) +
-  geom_sf(data = city, inherit.aes = F)
+df_coords <- st_as_sf(df_coords, coords = c("lon", "lat")) %>% st_set_crs(value = st_crs(cells))
+df_intersection <- st_join(x = cells, y = df_coords) %>% na.omit() %>% group_by(id) %>% summarise(n = n())
 
-ggmap(basemap) +
-  geom_sf(data = cells, inherit.aes = F)
-
-cells2 <- cells %>% st_as_sf() 
-cells2 <- cells2 %>% mutate(id = c(1:nrow(cells2)))
-
-df_coords_sf <- st_as_sf(df_coords, coords = c("lon", "lat")) %>% st_set_crs(value = st_crs(cells2))
-
-df <- st_join(x = cells2, y = df_coords_sf)
-df2 <- df %>% na.omit() %>% group_by(id) %>% summarise(n = n())
-
-ggmap(basemap) +
-  geom_sf(data = df2, aes(fill = n), inherit.aes = F)
-
-
-df3 <- st_intersects(df2, df2)
-
-df3[[1]]
-df3[[2]]
+# For each row get its neighbors
+df_graph <- st_intersects(df_intersection, df_intersection)
 
 df_list <- data.frame()
 
-for(i in c(1:length(df3))){
-  df_temp <- data.frame(id = i, neigh = df3[[i]])
+for(i in c(1:length(df_graph))) {
+  df_temp <- data.frame(second_id = i, neighbour = df_graph[[i]])
   df_list <- rbind(df_list, df_temp)
 }
 
-df4 <- df2 %>% mutate(list_id = c(1:nrow(df2)))
+rm(df_temp, i)
 
-df_neighbores <- inner_join(df_list, df4, by = c('neigh' = 'list_id'))
+df_intersection <- df_intersection %>% mutate(second_id = c(1:nrow(df_intersection)))
+df_neighbores <- inner_join(df_list, df_intersection %>% select(second_id, n), by = c('neighbour' = 'second_id'))
 
-dfn2 <- df_neighbores %>% 
-  group_by(id.x) %>% 
+df_trend <- df_neighbores %>% 
+  group_by(second_id) %>% 
   summarise(
     sum_n = sum(n),
-    k = 7
+    k = 7 # because hexagons have 7 edges (doesnt work for all cells :( remember, we got water)
   ) %>% 
   mutate(
     trend = sum_n / k
   )
 
-ggplot(dfn2, aes(x = trend)) +
-  geom_histogram(bins = 50)
-
-dfn3 <- df_neighbores %>% 
-  filter(id.x == neigh) %>% 
-  left_join(dfn2, by = 'id.x') %>% 
+df_nrm <- df_neighbores %>% 
+  filter(second_id == neighbour) %>% 
+  left_join(df_trend, by = 'second_id') %>% 
   mutate(nrm = n - trend)
 
-ggplot(dfn3, aes(x = nrm)) +
-  geom_histogram(bins = 50)
+rm(df_intersection, df_graph, df_neighbores, df_list, df_trend)
 
-ggplot(dfn3, aes(x = nrm)) +
-  geom_boxplot()
+border_1 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 0.67
+border_2 <- median(df_nrm$nrm) + sd(df_nrm$nrm)
+border_3 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 2
+border_4 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 3
 
-std2 <- sd(dfn3$nrm) * 2
-std3 <- sd(dfn3$nrm) * 3
-
-ggplot(dfn3, aes(x = nrm)) +
+ggplot(df_nrm, aes(x = nrm)) +
   geom_histogram(bins = 50) +
-  geom_vline(xintercept = c(median(dfn3$nrm), median(dfn3$nrm) + std2, median(dfn3$nrm) + std3), col = 'red', linetype = 'dashed')
+  geom_vline(xintercept = c(border_1, border_2, border_3, border_4), col = 'red', linetype = 'dashed')
 
-thresh_center <- median(dfn3$nrm) + sd(dfn3$nrm) * 3
-thresh_subcenter <- median(dfn3$nrm) + sd(dfn3$nrm) * 2
-
-dfn4 <- dfn3 %>% 
+df_map2 <- df_nrm %>% 
   mutate(
-    is_center = ifelse(nrm >= thresh_center, 1, 0),
-    is_subcenter = ifelse(nrm >= thresh_subcenter, 1, 0)
+    cell_type = case_when(
+      nrm < border_3 ~ 0,
+      # nrm >= border_1 & nrm < border_2 ~ 1,
+      # nrm >= border_2 & nrm < border_3 ~ 2,
+      nrm >= border_3 & nrm < border_4 ~ 3,
+      TRUE ~ 4
+    )
   ) %>% 
   st_as_sf()
 
-ggmap(basemap) +
-  geom_sf(data = dfn4, aes(fill = n), inherit.aes = F, alpha = 0.3) +
-  geom_sf(data = dfn4 %>% filter(is_subcenter == 1), fill = 'blue', inherit.aes = F, alpha = 0.6) +
-  geom_sf(data = dfn4 %>% filter(is_center == 1), fill = 'red', inherit.aes = F)
+map2 <- ggmap(basemap) +
+  geom_sf(data = df_coords, inherit.aes = F, alpha = 0.1) +
+  geom_sf(data = df_map2 %>% filter(cell_type %in% c(3,4)), aes(fill = factor(cell_type)), inherit.aes = F) +
+  scale_fill_brewer(palette = 'Reds')
 
-sum(dfn4$is_center)
+map2
 
-# Всего 3 ядра (при cellsize = 0.004)
-# 6 ядер первого и 3 ядра второго порядка (при cellsize = 0.002)
-
-# Нужно отрисовывать вручную кварталы на АркГИСе? :(
-# Расширить перечень объектов?
+rm(map2, df_map2, df_nrm, city, cells); gc()
+rm(border_1, border_2, border_3, border_4)
 
 
 
+# 3. Expert grid ----
 
+city_grid <- read_sf('data/astrakhan_grid.shp')
+city_grid <- city_grid %>% mutate(id = c(1:nrow(city_grid)))
 
+df_coords <- readRDS('data/df_coords.rds')
+df_coords <- st_as_sf(df_coords, coords = c("lon", "lat")) %>% st_set_crs(value = st_crs(city_grid))
 
+df_intersection <- st_join(x = city_grid, y = df_coords) %>% na.omit() %>% group_by(id) %>% summarise(n = n())
+
+# For each row get its neighbors
+df_graph <- st_intersects(df_intersection, df_intersection)
+
+df_list <- data.frame()
+
+for(i in c(1:length(df_graph))) {
+  df_temp <- data.frame(second_id = i, neighbour = df_graph[[i]])
+  df_list <- rbind(df_list, df_temp)
+}
+
+rm(df_temp, i)
+
+# How many neighbours each cell has
+df_k <- df_list %>% group_by(second_id) %>% filter(second_id != neighbour) %>% summarise(k = n_distinct(neighbour))
+
+df_intersection <- df_intersection %>% mutate(second_id = c(1:nrow(df_intersection)))
+df_neighbores <- inner_join(df_list, df_intersection %>% select(second_id, n), by = c('neighbour' = 'second_id'))
+
+df_trend <- df_neighbores %>% 
+  inner_join(df_k %>% select(second_id, k), by = 'second_id') %>% 
+  group_by(second_id) %>% 
+  summarise(
+    k = mean(k),
+    sum_n = sum(n)
+  ) %>% 
+  mutate(
+    trend = sum_n / k
+  )
+
+df_nrm <- df_neighbores %>% 
+  filter(second_id == neighbour) %>% 
+  inner_join(df_trend, by = 'second_id') %>% 
+  mutate(nrm = n - trend)
+
+rm(df_intersection, df_graph, df_neighbores, df_list, df_trend)
+
+border_1 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 0.67
+border_2 <- median(df_nrm$nrm) + sd(df_nrm$nrm)
+border_3 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 2
+border_4 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 3
+
+ggplot(df_nrm, aes(x = nrm)) +
+  geom_histogram(bins = 50) +
+  geom_vline(xintercept = c(border_1, border_2, border_3, border_4), col = 'red', linetype = 'dashed')
+
+df_map3 <- df_nrm %>% 
+  mutate(
+    cell_type = case_when(
+      nrm < border_3 ~ 0,
+      nrm >= border_1 & nrm < border_2 ~ 1,
+      nrm >= border_2 & nrm < border_3 ~ 2,
+      nrm >= border_3 & nrm < border_4 ~ 3,
+      TRUE ~ 4
+    )
+  ) %>% 
+  st_as_sf()
+
+map3 <- ggmap(basemap) +
+  geom_sf(data = df_map3 %>% filter(cell_type %in% c(0,1,2)), fill = 'white', inherit.aes = F, alpha = 0.4) +
+  geom_sf(data = df_coords, inherit.aes = F, alpha = 0.1) +
+  geom_sf(data = df_map3 %>% filter(cell_type %in% c(3,4)), aes(fill = factor(cell_type)), inherit.aes = F) +
+  scale_fill_brewer(palette = 'Reds')
+
+map3
+
+rm(map2, df_map2, df_nrm, city, cells); gc()
+rm(border_1, border_2, border_3, border_4)
+
+# Need a fix for neighbores count (k parameter)
 
 
 
