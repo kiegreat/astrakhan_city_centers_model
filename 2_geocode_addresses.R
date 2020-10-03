@@ -10,11 +10,13 @@ f <- list.files(path = 'data/', pattern = '.csv', full.names = T) # f stands for
 df <- map_df(.x = f, .f = ~read_csv(.x)); rm(f)
 glimpse(df)
 
-df <- df %>% distinct(name, address) # Оставим уникальные объекты (некоторые могли попасть в несколько категорий)
-
+df <- df %>% 
+  distinct(name, address) %>%  # Оставим уникальные объекты (некоторые могли попасть в несколько категорий)
+  mutate(address = str_c('Астрахань, ', address))
+  
 # 2. Geocode addresses ----
 
-api_key <- "insert your api-key here"
+api_key <- # "insert your api-key here"
 
 geocode <- function(i) {
   
@@ -42,6 +44,7 @@ geocode <- function(i) {
 }
 
 df_coords <- map_df(.x = c(1:nrow(df)), .f = possibly(geocode, otherwise = NULL))
+df_coords <- df_coords %>% filter(lon != 48.030169 & lat != 46.347614)
 saveRDS(df_coords, 'data/df_coords.rds')
 
 
