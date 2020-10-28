@@ -38,22 +38,33 @@ df_coords <- readRDS('data/df_coords.rds')
 # 1. Kernel density ----
 
 map1 <- ggmap(basemap) +
-  stat_density_2d(data = df_coords, aes(x = lon, y = lat, fill = ..level.., alpha = ..level..), geom = 'polygon', h = NULL, adjust = c(0.2, 0.2)) +
-  geom_point(data = df_coords, aes(x = lon, y = lat), alpha = 0.5, shape = 20, col = 'black') +
+  stat_density_2d(data = df_coords, aes(x = lon, y = lat, fill = ..level..), geom = 'polygon', h = NULL, adjust = c(0.2, 0.2)) +
+  geom_point(data = df_coords, aes(x = lon, y = lat), alpha = 0.1, col = 'black') +
   maps_theme +
   theme(legend.position = 'none') +
-  scale_fill_gradient(low = 'red', high = 'yellow')
+  scale_fill_gradient(low = 'red', high = 'yellow') +
+  labs(
+    x = '',
+    y = '',
+    title = 'Основные городские центры активности',
+    subtitle = 'на основе тепловой карты концентрации объектов обслуживания',
+    caption = 'Автор - Кирилл Гудков / Инструмент - R / Данные - 2ГИС'
+  ) +
+  coord_sf(crs = st_crs(4326))
 
 map1
 
+ggsave(filename = 'map1.png', plot = map1, device = 'png', path = 'viz', dpi = 400, width = 12, height = 7)
+
 rm(map1); gc()
+
 
 
 
 # 2. Hexagonal grid ----
 
 # Remove water part from city shape
-city <- read_sf("data/osm/gis_osm_places_a_free_1.shp") %>% filter(name == 'Астрахань') # %>% st_set_crs(4326) %>% st_transform(crs = 32638)
+city <- read_sf("data/osm/gis_osm_places_a_free_1.shp") %>% filter(name == 'Астрахань')
 water <- read_sf("data/osm/gis_osm_water_a_free_1.shp") %>% st_intersection(city, water)
 city <- st_difference(city %>% st_union(), water %>% st_union()) %>% st_as_sf()
 rm(water)
@@ -65,6 +76,7 @@ cells <- cells %>% mutate(id = c(1:nrow(cells)))
 
 df_coords <- st_as_sf(df_coords, coords = c("lon", "lat")) %>% st_set_crs(value = st_crs(cells))
 df_intersection <- st_join(x = cells, y = df_coords) %>% na.omit() %>% group_by(id) %>% summarise(n = n())
+df
 
 # For each row get its neighbors
 df_graph <- st_intersects(df_intersection, df_intersection)
@@ -77,6 +89,31 @@ for(i in c(1:length(df_graph))) {
 }
 
 rm(df_temp, i)
+
+
+
+
+# How many neighbours each cell has
+df_k <- df_list %>% group_by(second_id) %>% filter(second_id != neighbour) %>% summarise(k = n_distinct(neighbour))
+
+df_union <- df_union %>% mutate(second_id = c(1:nrow(df_union)))
+df_neighbores <- inner_join(df_list, df_union %>% select(second_id, n), by = c('neighbour' = 'second_id'))
+
+df_trend <- df_neighbores %>% 
+  inner_join(df_k %>% select(second_id, k), by = 'second_id') %>% 
+  group_by(second_id) %>% 
+  summarise(
+    k = mean(k),
+    sum_n = sum(n)
+  ) %>% 
+  mutate(
+    trend = sum_n / k
+  )
+
+
+
+
+
 
 df_intersection <- df_intersection %>% mutate(second_id = c(1:nrow(df_intersection)))
 df_neighbores <- inner_join(df_list, df_intersection %>% select(second_id, n), by = c('neighbour' = 'second_id'))
@@ -121,7 +158,7 @@ df_map2 <- df_nrm %>%
 
 map2 <- ggmap(basemap) +
   geom_sf(data = df_coords, inherit.aes = F, alpha = 0.1) +
-  geom_sf(data = df_map2 %>% filter(cell_type %in% c(3,4)), aes(fill = factor(cell_type)), inherit.aes = F) +
+  geom_sf(data = df_map2 %>% filter(cell_type %in% c(0,3,4)), aes(fill = factor(cell_type)), inherit.aes = F) +
   scale_fill_brewer(palette = 'Reds')
 
 map2
@@ -134,15 +171,17 @@ rm(border_1, border_2, border_3, border_4)
 # 3. Expert grid ----
 
 city_grid <- read_sf('data/astrakhan_grid.shp')
-city_grid <- city_grid %>% mutate(id = c(1:nrow(city_grid)))
+city_grid <- city_grid %>% select(-Id) %>% mutate(id = c(1:nrow(city_grid)))
 
 df_coords <- readRDS('data/df_coords.rds')
 df_coords <- st_as_sf(df_coords, coords = c("lon", "lat")) %>% st_set_crs(value = st_crs(city_grid))
 
 df_intersection <- st_join(x = city_grid, y = df_coords) %>% na.omit() %>% group_by(id) %>% summarise(n = n())
+df_setdiff <- city_grid %>% filter(!(id %in% df_intersection$id)) %>% mutate(n = 0) %>% select(id, n, geometry) # define cells without service objects
+df_union <- rbind(df_intersection, df_setdiff)
 
 # For each row get its neighbors
-df_graph <- st_intersects(df_intersection, df_intersection)
+df_graph <- st_intersects(df_union, df_union)
 
 df_list <- data.frame()
 
@@ -156,8 +195,8 @@ rm(df_temp, i)
 # How many neighbours each cell has
 df_k <- df_list %>% group_by(second_id) %>% filter(second_id != neighbour) %>% summarise(k = n_distinct(neighbour))
 
-df_intersection <- df_intersection %>% mutate(second_id = c(1:nrow(df_intersection)))
-df_neighbores <- inner_join(df_list, df_intersection %>% select(second_id, n), by = c('neighbour' = 'second_id'))
+df_union <- df_union %>% mutate(second_id = c(1:nrow(df_union)))
+df_neighbores <- inner_join(df_list, df_union %>% select(second_id, n), by = c('neighbour' = 'second_id'))
 
 df_trend <- df_neighbores %>% 
   inner_join(df_k %>% select(second_id, k), by = 'second_id') %>% 
@@ -175,7 +214,7 @@ df_nrm <- df_neighbores %>%
   inner_join(df_trend, by = 'second_id') %>% 
   mutate(nrm = n - trend)
 
-rm(df_intersection, df_graph, df_neighbores, df_list, df_trend)
+rm(df_intersection, df_graph, df_neighbores, df_list, df_trend, df_union, df_setdiff)
 
 border_1 <- median(df_nrm$nrm) + sd(df_nrm$nrm) * 0.67
 border_2 <- median(df_nrm$nrm) + sd(df_nrm$nrm)
@@ -199,18 +238,31 @@ df_map3 <- df_nrm %>%
   st_as_sf()
 
 map3 <- ggmap(basemap) +
-  geom_sf(data = df_map3 %>% filter(cell_type %in% c(0,1,2)), fill = 'white', inherit.aes = F, alpha = 0.4) +
-  geom_sf(data = df_coords, inherit.aes = F, alpha = 0.1) +
+  geom_sf(data = df_map3 %>% filter(cell_type %in% c(0,1,2)), fill = 'white', inherit.aes = F, alpha = 0.1, lwd = 0.2) +
   geom_sf(data = df_map3 %>% filter(cell_type %in% c(3,4)), aes(fill = factor(cell_type)), inherit.aes = F) +
-  scale_fill_brewer(palette = 'Reds')
+  geom_sf(data = df_coords, inherit.aes = F, alpha = 0.05, size = 1) +
+  scale_fill_brewer(palette = 'Reds') +
+  maps_theme +
+  theme(legend.position = 'none') +
+  labs(
+    x = '',
+    y = '',
+    title = 'Узловые районы городского пространства',
+    subtitle = 'на основе неравномерно-районированной модели',
+    caption = 'Автор - Кирилл Гудков / Инструмент - R / Данные - 2ГИС'
+  ) +
+  coord_sf(crs = st_crs(4326)) +
+  scale_x_continuous(limits = c(47.97, 48.12), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(46.29, 46.4), expand = c(0, 0))
 
 map3
 
-rm(map2, df_map2, df_nrm, city, cells); gc()
+ggsave(filename = 'map3.png', plot = map3, device = 'png', path = 'viz', dpi = 400, width = 12, height = 7)
+
+rm(map3, df_map3, df_nrm, city_grid, df_k); gc()
 rm(border_1, border_2, border_3, border_4)
 
 # Need a fix for neighbores count (k parameter)
-
 
 
 
