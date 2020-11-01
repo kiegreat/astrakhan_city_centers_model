@@ -236,6 +236,7 @@ map3 <- ggmap(basemap) +
   geom_sf(data = df_coords, inherit.aes = F, alpha = 0.05, size = 1) +
   scale_fill_manual(values = c('#fc9272', '#fddfd1'), labels = c("I порядка", "II порядка")) +
   maps_theme +
+  theme(legend.position = 'bottom') +
   labs(
     x = '',
     y = '',
