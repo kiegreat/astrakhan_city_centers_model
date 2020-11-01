@@ -13,9 +13,9 @@
 * Статья. [Построение неравномерно-районированной модели (на примере г. Владивостока) — Потапенко Анастасия](https://cyberleninka.ru/article/n/postroenie-neravnomerno-rayonirovannoy-modeli-na-primere-g-vladivostoka)
 * Статья. [Москва: курс на полицентричность](https://mosurbanforum.ru/upload/iblock/1cf/1cf9fbc125998999902f530b7d8a033e.pdf)
 
-# Визуализации
+## Визуализации
 
-![](https://sun9-46.userapi.com/zZaTKnX7bGO0egFWTJ76JNc_tuNdjDcIZxZ9Mw/R93BUe2ED_U.jpg)
-![](https://sun9-58.userapi.com/skloy_DIz1VoTA29dgQxM3Te6OT_QMJ9epzqjg/n8djaJWqehI.jpg)
-![](https://sun9-66.userapi.com/IdjpaF9yIXWIKoDF6hc1rfIlOChvMGesjjUNrw/-l_QZT8phCQ.jpg)
-![](https://sun9-49.userapi.com/lI3fyyzAQgNaQJK5Isua7v1W2WaXmqh7cpwMpw/WBCOT0n_k20.jpg)
+![](https://sun9-2.userapi.com/Azmv9vtM9azIaf0uvU8TsY5tZu4fFcLKn4DTYQ/YaYeBwT5Ulg.jpg)
+![](https://sun9-49.userapi.com/um0yE3YNmvj3-3Z2rcHDxYPqhiOvi7mPBk-clg/Z_rLo_fj3Jk.jpg)
+![](https://sun9-20.userapi.com/1S9sudZReu5hlMhcl146uy0NynaMSyI8iCXTtQ/686hxiyJT8A.jpg)
+![](https://sun9-73.userapi.com/tGbPtQBQKHyXKcM6IHqEKGzcIygFhtQdKdAHNw/aNal91Nk3As.jpg)

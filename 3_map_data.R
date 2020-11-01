@@ -51,11 +51,11 @@ map1 <- ggmap(basemap) +
     caption = 'Автор - Кирилл Гудков / Инструмент - R / Данные - 2ГИС'
   ) +
   coord_sf(crs = st_crs(4326)) +
-  scale_y_continuous(limits = c(46.28, 46.43), expand = c(0, 0))
+  scale_y_continuous(limits = c(46.28, 46.4235), expand = c(0, 0))
 
 map1
 
-ggsave(filename = 'map1.png', plot = map1, device = 'png', path = 'viz', dpi = 400, width = 12, height = 7)
+ggsave(filename = 'map1.png', plot = map1, device = 'png', path = 'viz', dpi = 400, width = 7, height = 7)
 
 rm(map1); gc()
 
@@ -150,11 +150,11 @@ map2 <- ggmap(basemap) +
     caption = 'Автор - Кирилл Гудков / Инструмент - R / Данные - 2ГИС'
   ) +
   coord_sf(crs = st_crs(4326)) +
-  scale_y_continuous(limits = c(46.28, 46.43), expand = c(0, 0))
+  scale_y_continuous(limits = c(46.28, 46.423), expand = c(0, 0))
 
 map2
 
-ggsave(filename = 'map2.png', plot = map2, device = 'png', path = 'viz', dpi = 400, width = 12, height = 7)
+ggsave(filename = 'map2.png', plot = map2, device = 'png', path = 'viz', dpi = 400, width = 7, height = 7)
 
 rm(map2, df_nrm, city, cells); gc()
 rm(border_1, border_2, border_3, border_4)
@@ -251,7 +251,7 @@ map3 <- ggmap(basemap) +
 
 map3
 
-ggsave(filename = 'map3.png', plot = map3, device = 'png', path = 'viz', dpi = 400, width = 12, height = 7)
+ggsave(filename = 'map3.png', plot = map3, device = 'png', path = 'viz', dpi = 400, width = 7, height = 7)
 
 rm(map3, df_nrm, city_grid, df_k); gc()
 rm(border_1, border_2, border_3, border_4)
@@ -283,7 +283,7 @@ map4 <- ggmap(basemap) +
 
 map4
 
-ggsave(filename = 'map4.png', plot = map4, device = 'png', path = 'viz', dpi = 400, width = 12, height = 7)
+ggsave(filename = 'map4.png', plot = map4, device = 'png', path = 'viz', dpi = 400, width = 7, height = 7)
 
 
 
